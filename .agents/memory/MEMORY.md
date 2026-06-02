@@ -1,0 +1,2 @@
+- [Python FastAPI on Replit](python-fastapi-replit.md) — artifact run command executes from artifact dir; use `python run.py` not full path
+- [LLM JSON parsing](llm-json-parsing.md) — LLMs often wrap JSON in markdown fences; always strip and fallback to regex extraction

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AnalystGuru"
+version = "1.0.0"
+id = "artifacts/analyst-guru"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23736
+
+[services.development]
+run = "pnpm --filter @workspace/analyst-guru run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/analyst-guru", "run", "build" ]
+publicDir = "artifacts/analyst-guru/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23736"
+BASE_PATH = "/"
