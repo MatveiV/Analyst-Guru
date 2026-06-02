@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useListDocuments, getListDocumentsQueryKey, useCreateDocument } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
@@ -11,24 +11,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useLanguage } from "@/lib/i18n";
 
 export default function Documents() {
+  const { t } = useLanguage();
   const [page, setPage] = useState(1);
   const limit = 20;
   const offset = (page - 1) * limit;
 
   const { data: documents, isLoading } = useListDocuments({ limit, offset }, {
-    query: {
-      queryKey: getListDocumentsQueryKey({ limit, offset }),
-    }
+    query: { queryKey: getListDocumentsQueryKey({ limit, offset }) }
   });
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
   const createDocMutation = useCreateDocument();
   const [open, setOpen] = useState(false);
-
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [docType, setDocType] = useState("tz");
@@ -38,20 +36,15 @@ export default function Documents() {
     if (!title || !text) return;
     try {
       await createDocMutation.mutateAsync({
-        data: {
-          title,
-          text,
-          doc_type: docType,
-          project_name: projectName || null,
-        }
+        data: { title, text, doc_type: docType, project_name: projectName || null }
       });
-      toast({ title: "Document created successfully" });
+      toast({ title: t.docs_created_success });
       queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey({ limit, offset }) });
       setOpen(false);
       setTitle("");
       setText("");
-    } catch (e) {
-      toast({ title: "Failed to create document", variant: "destructive" });
+    } catch {
+      toast({ title: t.docs_create_error, variant: "destructive" });
     }
   };
 
@@ -59,27 +52,32 @@ export default function Documents() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Documents</h1>
-          <p className="text-muted-foreground">Manage and review project documentation.</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t.docs_title}</h1>
+          <p className="text-muted-foreground">{t.docs_subtitle}</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>Add Document</Button>
+            <Button data-testid="button-add-document">{t.docs_add}</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Add New Document</DialogTitle>
+              <DialogTitle>{t.docs_add_title}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Title</Label>
-                <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="E.g. Payment Gateway Requirements" />
+                <Label>{t.docs_title_field}</Label>
+                <Input
+                  data-testid="input-doc-title"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder={t.docs_title_placeholder}
+                />
               </div>
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>{t.docs_type_field}</Label>
                 <Select value={docType} onValueChange={setDocType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
+                  <SelectTrigger data-testid="select-doc-type">
+                    <SelectValue placeholder={t.docs_select_type} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tz">TZ</SelectItem>
@@ -92,18 +90,35 @@ export default function Documents() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Project Name (Optional)</Label>
-                <Input value={projectName} onChange={e => setProjectName(e.target.value)} placeholder="Project Alpha" />
+                <Label>{t.docs_project_field}</Label>
+                <Input
+                  data-testid="input-doc-project"
+                  value={projectName}
+                  onChange={e => setProjectName(e.target.value)}
+                  placeholder={t.docs_project_placeholder}
+                />
               </div>
               <div className="space-y-2">
-                <Label>Content</Label>
-                <Textarea value={text} onChange={e => setText(e.target.value)} placeholder="Paste document content here..." className="h-40 font-mono text-sm" />
+                <Label>{t.docs_content_field}</Label>
+                <Textarea
+                  data-testid="textarea-doc-content"
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  placeholder={t.docs_content_placeholder}
+                  className="h-40 font-mono text-sm"
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={createDocMutation.isPending}>
-                {createDocMutation.isPending ? "Saving..." : "Save Document"}
+              <Button variant="outline" onClick={() => setOpen(false)} data-testid="button-cancel">
+                {t.docs_cancel}
+              </Button>
+              <Button
+                onClick={handleCreate}
+                disabled={createDocMutation.isPending}
+                data-testid="button-save-document"
+              >
+                {createDocMutation.isPending ? t.docs_saving : t.docs_save}
               </Button>
             </div>
           </DialogContent>
@@ -115,34 +130,36 @@ export default function Documents() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Created At</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t.docs_col_title}</TableHead>
+                <TableHead>{t.docs_col_type}</TableHead>
+                <TableHead>{t.docs_col_project}</TableHead>
+                <TableHead>{t.docs_col_created}</TableHead>
+                <TableHead className="text-right">{t.docs_col_actions}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">Loading...</TableCell>
+                  <TableCell colSpan={5} className="text-center py-8">{t.common_loading}</TableCell>
                 </TableRow>
               ) : documents?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No documents found.</TableCell>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t.docs_empty}</TableCell>
                 </TableRow>
               ) : (
                 documents?.map(doc => (
-                  <TableRow key={doc.id}>
+                  <TableRow key={doc.id} data-testid={`row-doc-${doc.id}`}>
                     <TableCell className="font-medium">
                       <Link href={`/documents/${doc.id}`} className="hover:underline">{doc.title}</Link>
                     </TableCell>
-                    <TableCell><span className="uppercase text-xs font-semibold bg-secondary px-2 py-1 rounded">{doc.doc_type}</span></TableCell>
-                    <TableCell>{doc.project_name || "-"}</TableCell>
+                    <TableCell>
+                      <span className="uppercase text-xs font-semibold bg-secondary px-2 py-1 rounded">{doc.doc_type}</span>
+                    </TableCell>
+                    <TableCell>{doc.project_name || "—"}</TableCell>
                     <TableCell>{new Date(doc.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/documents/${doc.id}`}>View</Link>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" asChild data-testid={`button-view-doc-${doc.id}`}>
+                        <Link href={`/documents/${doc.id}`}>{t.docs_view}</Link>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -150,11 +167,13 @@ export default function Documents() {
               )}
             </TableBody>
           </Table>
-          
+
           <div className="p-4 border-t flex items-center justify-between">
-            <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-            <span className="text-sm text-muted-foreground">Page {page}</span>
-            <Button variant="outline" size="sm" disabled={!documents || documents.length < limit} onClick={() => setPage(p => p + 1)}>Next</Button>
+            <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}
+              data-testid="button-prev-page">{t.common_prev}</Button>
+            <span className="text-sm text-muted-foreground">{t.common_page} {page}</span>
+            <Button variant="outline" size="sm" disabled={!documents || documents.length < limit}
+              onClick={() => setPage(p => p + 1)} data-testid="button-next-page">{t.common_next}</Button>
           </div>
         </CardContent>
       </Card>
