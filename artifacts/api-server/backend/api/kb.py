@@ -23,8 +23,8 @@ class KbQuestionInput(BaseModel):
 
 
 class DirectAnswerInput(BaseModel):
-    question: str
-    context: str
+    question: str = Field(min_length=1, max_length=2000)
+    context: str = Field(min_length=0, max_length=50000)
 
 
 def doc_to_dict(doc: DocumentModel) -> dict:
@@ -66,7 +66,7 @@ def add_kb_document(body: KbDocumentInput, db: Session = Depends(get_db)):
     except Exception:
         pass
 
-    return doc_to_dict(doc)
+    return {"status": "ok", "document_id": doc.id, **doc_to_dict(doc)}
 
 
 @router.post("/ask")
@@ -105,6 +105,7 @@ def ask_knowledge_base(body: KbQuestionInput, db: Session = Depends(get_db)):
         answer=result.get("answer", ""),
         sources_json=json.dumps(enriched_sources, ensure_ascii=False),
         needs_review=needs_review,
+        error=result.get("error"),
     )
     db.add(qa)
     db.commit()

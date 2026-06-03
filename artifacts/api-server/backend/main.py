@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database import init_db
-from backend.api import documents, reviews, kb, generators, memory, diagrams, audit, dashboard
+from backend.api import documents, reviews, kb, generators, memory, diagrams, audit, dashboard, settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -184,3 +184,4 @@ app.include_router(memory.router)
 app.include_router(diagrams.router)
 app.include_router(audit.router)
 app.include_router(dashboard.router)
+app.include_router(settings.router)

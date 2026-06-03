@@ -107,12 +107,12 @@ export default function Dashboard() {
                 <div className="flex justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : activity?.length === 0 ? (
+              ) : !Array.isArray(activity) || activity.length === 0 ? (
                 <div className="text-center p-8 text-muted-foreground border border-dashed rounded-md">
                   {t.dashboard_no_activity}
                 </div>
               ) : (
-                activity?.map((item) => (
+                activity.map((item) => (
                   <div key={item.id} className="flex items-start gap-4 border-b pb-4 last:border-0 last:pb-0">
                     <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${item.status === 'error' ? 'bg-destructive' : item.needs_review ? 'bg-yellow-500' : 'bg-primary'}`} />
                     <div className="flex-1 space-y-1">

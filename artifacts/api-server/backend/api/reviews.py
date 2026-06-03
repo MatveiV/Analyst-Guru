@@ -68,6 +68,7 @@ def review_document(id: str, db: Session = Depends(get_db)):
         review_json=json.dumps(result, ensure_ascii=False),
         needs_review=result.get("needs_review", False),
         confidence=result.get("confidence", "low"),
+        error=result.get("error"),
     )
     db.add(review)
     db.commit()
@@ -94,7 +95,7 @@ def review_document(id: str, db: Session = Depends(get_db)):
             db.add(mem)
         db.commit()
 
-    return review_to_dict(review, doc.title)
+    return {"status": "ok", "review_id": review.id, **review_to_dict(review, doc.title)}
 
 
 @router.get("/reviews")

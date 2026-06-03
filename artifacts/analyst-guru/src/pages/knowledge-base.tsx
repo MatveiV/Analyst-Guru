@@ -1,39 +1,75 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   useListKbDocuments, getListKbDocumentsQueryKey,
   useListKbHistory, getListKbHistoryQueryKey,
-  useAskKnowledgeBase
+  useAskKnowledgeBase, useAddKbDocument
 } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Loader2, Search, ExternalLink, FileText, Plus } from "lucide-react";
+import { Link } from "wouter";
 import { useLanguage } from "@/lib/i18n";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 export default function KnowledgeBase() {
   const { t } = useLanguage();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("ask");
   const [question, setQuestion] = useState("");
   const askMutation = useAskKnowledgeBase();
+  const addKbMutation = useAddKbDocument();
   const [answer, setAnswer] = useState<any>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newText, setNewText] = useState("");
+  const [newProject, setNewProject] = useState("");
+  const [historyFilter, setHistoryFilter] = useState<string>("all");
+  const [detailItem, setDetailItem] = useState<any>(null);
 
   const { data: kbDocs, isLoading: kbLoading } = useListKbDocuments({}, {
     query: { queryKey: getListKbDocumentsQueryKey() }
   });
 
-  const { data: history, isLoading: historyLoading } = useListKbHistory({}, {
-    query: { queryKey: getListKbHistoryQueryKey() }
+  const historyQueryParams = historyFilter === "needs_review" ? { needs_review: true as boolean, limit: 50 as number } : { limit: 50 as number };
+  const { data: history, isLoading: historyLoading } = useListKbHistory(historyQueryParams, {
+    query: { queryKey: getListKbHistoryQueryKey(historyQueryParams) }
   });
 
-  const handleAsk = async () => {
+  const handleAsk = useCallback(async () => {
     if (!question.trim()) return;
     try {
       const res = await askMutation.mutateAsync({ data: { question } });
       setAnswer(res);
     } catch (e) {
       console.error(e);
+    }
+  }, [question, askMutation]);
+
+  const handleAddDocument = async () => {
+    if (!newTitle.trim() || !newText.trim()) return;
+    try {
+      await addKbMutation.mutateAsync({
+        data: { title: newTitle, text: newText, project_name: newProject || null, doc_type: "kb_article" }
+      });
+      toast({ title: t.kb_docs_add_success });
+      queryClient.invalidateQueries({ queryKey: getListKbDocumentsQueryKey() });
+      setAddOpen(false);
+      setNewTitle("");
+      setNewText("");
+      setNewProject("");
+    } catch {
+      toast({ title: t.kb_docs_add_error, variant: "destructive" });
     }
   };
 
@@ -98,7 +134,14 @@ export default function KnowledgeBase() {
                       <div className="space-y-3">
                         {answer.sources.map((src: any, i: number) => (
                           <div key={i} className="text-sm bg-card border rounded p-3">
-                            <p className="font-medium mb-1 text-primary">{src.document_title || t.kb_unknown_doc}</p>
+                            {src.document_id ? (
+                              <Link href={`/documents/${src.document_id}`} className="font-medium mb-1 text-primary hover:underline inline-flex items-center gap-1">
+                                {src.document_title || t.kb_unknown_doc}
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            ) : (
+                              <p className="font-medium mb-1 text-primary">{src.document_title || t.kb_unknown_doc}</p>
+                            )}
                             <p className="text-muted-foreground italic border-l-2 pl-3 mt-2">{src.quote}</p>
                           </div>
                         ))}
@@ -113,26 +156,43 @@ export default function KnowledgeBase() {
 
         <TabsContent value="documents">
           <Card>
+            <div className="p-4 border-b flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{kbDocs?.length || 0} {t.kb_docs_col_title?.toLowerCase?.() || "документов"}</p>
+              <Button onClick={() => setAddOpen(true)} size="sm" data-testid="button-add-kb-doc">
+                <Plus className="h-4 w-4 mr-1" />
+                {t.kb_docs_add}
+              </Button>
+            </div>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>{t.kb_docs_col_title}</TableHead>
-                    <TableHead>{t.kb_docs_col_project}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t.kb_docs_col_id}</TableHead>
+                    <TableHead className="hidden md:table-cell">{t.kb_docs_col_project}</TableHead>
                     <TableHead>{t.kb_docs_col_added}</TableHead>
+                    <TableHead className="text-right">{t.kb_docs_col_actions}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {kbLoading ? (
-                    <TableRow><TableCell colSpan={3} className="text-center py-4">{t.common_loading}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8">{t.common_loading}</TableCell></TableRow>
                   ) : kbDocs?.length === 0 ? (
-                    <TableRow><TableCell colSpan={3} className="text-center py-4 text-muted-foreground">{t.kb_docs_empty}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">{t.kb_docs_empty}</TableCell></TableRow>
                   ) : (
                     kbDocs?.map(doc => (
                       <TableRow key={doc.id}>
                         <TableCell className="font-medium">{doc.title}</TableCell>
-                        <TableCell>{doc.project_name || "—"}</TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground font-mono">{doc.id?.slice(0, 8)}…</TableCell>
+                        <TableCell className="hidden md:table-cell">{doc.project_name || "—"}</TableCell>
                         <TableCell>{new Date(doc.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" asChild data-testid={`button-open-kb-doc-${doc.id}`}>
+                            <Link href={`/documents/${doc.id}`}>
+                              {t.kb_docs_open}
+                            </Link>
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -144,6 +204,18 @@ export default function KnowledgeBase() {
 
         <TabsContent value="history">
           <Card>
+            <div className="p-4 border-b flex items-center gap-2">
+              <p className="text-sm text-muted-foreground mr-2">{t.kb_history_col_status}:</p>
+              <Select value={historyFilter} onValueChange={setHistoryFilter}>
+                <SelectTrigger className="w-48" data-testid="select-history-filter">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t.kb_history_filter_all}</SelectItem>
+                  <SelectItem value="needs_review">{t.kb_history_filter_needs_review}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -151,25 +223,34 @@ export default function KnowledgeBase() {
                     <TableHead>{t.kb_history_col_question}</TableHead>
                     <TableHead>{t.kb_history_col_status}</TableHead>
                     <TableHead>{t.kb_history_col_asked}</TableHead>
+                    <TableHead className="text-right">{t.kb_history_col_actions}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {historyLoading ? (
-                    <TableRow><TableCell colSpan={3} className="text-center py-4">{t.common_loading}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-8">{t.common_loading}</TableCell></TableRow>
                   ) : history?.length === 0 ? (
-                    <TableRow><TableCell colSpan={3} className="text-center py-4 text-muted-foreground">{t.kb_history_empty}</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{t.kb_history_empty}</TableCell></TableRow>
                   ) : (
                     history?.map(item => (
-                      <TableRow key={item.id}>
+                      <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setDetailItem(item)}>
                         <TableCell className="font-medium truncate max-w-[300px]" title={item.question}>{item.question}</TableCell>
                         <TableCell>
-                          {item.needs_review && (
-                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
+                          {item.needs_review ? (
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded whitespace-nowrap">
                               {t.needs_review_badge}
                             </span>
+                          ) : (
+                            <span className="text-xs text-green-600">OK</span>
                           )}
                         </TableCell>
-                        <TableCell>{new Date(item.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="whitespace-nowrap">{new Date(item.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDetailItem(item); }}>
+                            <FileText className="h-4 w-4 mr-1" />
+                            {t.kb_history_open}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -179,6 +260,79 @@ export default function KnowledgeBase() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{t.kb_docs_add_title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>{t.docs_title_field}</Label>
+              <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder={t.docs_title_placeholder} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t.docs_project_field}</Label>
+              <Input value={newProject} onChange={e => setNewProject(e.target.value)} placeholder={t.docs_project_placeholder} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t.docs_content_field}</Label>
+              <Textarea value={newText} onChange={e => setNewText(e.target.value)} placeholder={t.docs_content_placeholder} className="h-40 font-mono text-sm" />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>{t.docs_cancel}</Button>
+            <Button onClick={handleAddDocument} disabled={addKbMutation.isPending}>
+              {addKbMutation.isPending ? t.docs_saving : t.docs_save}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!detailItem} onOpenChange={(open) => { if (!open) setDetailItem(null); }}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t.kb_history_detail_title}</DialogTitle>
+            {detailItem && (
+              <DialogDescription className="text-sm font-medium text-foreground/80 pt-2">
+                {detailItem.question}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-sm text-muted-foreground mb-2">{t.kb_history_detail_answer}</h4>
+              <div className="bg-muted/50 p-4 rounded-md text-sm leading-relaxed whitespace-pre-wrap">{detailItem?.answer || "—"}</div>
+            </div>
+            {detailItem?.error && (
+              <div>
+                <h4 className="font-semibold text-sm text-muted-foreground mb-2">{t.kb_history_detail_error}</h4>
+                <div className="bg-red-50 text-red-800 p-3 rounded-md text-sm font-mono">{detailItem.error}</div>
+              </div>
+            )}
+            {detailItem?.sources_json && detailItem.sources_json.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-sm text-muted-foreground mb-2">{t.kb_history_detail_sources}</h4>
+                <div className="space-y-2">
+                  {detailItem.sources_json.map((src: any, i: number) => (
+                    <div key={i} className="text-sm bg-card border rounded p-3">
+                      {src.document_id ? (
+                        <Link href={`/documents/${src.document_id}`} className="font-medium text-primary hover:underline inline-flex items-center gap-1">
+                          {src.document_title || t.kb_unknown_doc}
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      ) : (
+                        <p className="font-medium text-primary">{src.document_title || t.kb_unknown_doc}</p>
+                      )}
+                      <p className="text-muted-foreground italic border-l-2 pl-3 mt-1 text-xs">{src.quote}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

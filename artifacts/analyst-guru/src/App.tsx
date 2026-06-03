@@ -13,6 +13,7 @@ import KnowledgeBase from "@/pages/knowledge-base";
 import ArchitectureStudio from "@/pages/architecture-studio";
 import Memory from "@/pages/memory";
 import Audit from "@/pages/audit";
+import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/architecture-studio" component={ArchitectureStudio} />
         <Route path="/memory" component={Memory} />
         <Route path="/audit" component={Audit} />
+        <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

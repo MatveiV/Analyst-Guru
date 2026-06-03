@@ -59,7 +59,7 @@ def create_document(body: DocumentInput, db: Session = Depends(get_db)):
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    return doc_to_dict(doc)
+    return {"status": "ok", "document_id": doc.id, **doc_to_dict(doc)}
 
 
 @router.get("/{id}")

@@ -147,6 +147,55 @@ class DiagramArtifact(Base):
     document = relationship("Document", back_populates="diagram_artifacts")
 
 
+class AiSetting(Base):
+    __tablename__ = "ai_settings"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    created_at = Column(DateTime, default=now, nullable=False)
+    updated_at = Column(DateTime, default=now, onupdate=now, nullable=False)
+    provider = Column(String(20), default="anthropic", nullable=False)
+    api_key = Column(Text, nullable=True)
+
+
+class RiskCatalogItem(Base):
+    __tablename__ = "risk_catalog"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    created_at = Column(DateTime, default=now, nullable=False)
+    severity = Column(String(10), default="medium", nullable=False)
+    category = Column(String(100), nullable=False)
+    description = Column(Text, nullable=False)
+    mitigation = Column(Text, nullable=False)
+    project_context = Column(String(255), nullable=True)
+
+
+class ProjectLesson(Base):
+    __tablename__ = "project_lessons"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    created_at = Column(DateTime, default=now, nullable=False)
+    project_name = Column(String(255), nullable=False)
+    lesson = Column(Text, nullable=False)
+    impact = Column(Text, nullable=False)
+    tags = Column(Text, default="[]", nullable=False)
+
+
+class Decision(Base):
+    __tablename__ = "decisions"
+
+    id = Column(String, primary_key=True, default=new_uuid)
+    created_at = Column(DateTime, default=now, nullable=False)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=True)
+    context = Column(Text, nullable=False)
+    problem = Column(Text, nullable=False)
+    decision = Column(Text, nullable=False)
+    alternatives = Column(Text, default="[]", nullable=False)
+    consequences = Column(Text, default="{}", nullable=False)
+    status = Column(String(20), default="proposed", nullable=False)
+
+    document = relationship("Document", backref="decisions")
+
+
 class GeneratedDoc(Base):
     __tablename__ = "generated_docs"
 

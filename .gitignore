@@ -44,6 +44,17 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# Build cache
 .cache/
 .local/
+
+# Environment
+.env
+
+# Runtime data
+data/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,17 +1,57 @@
+import { useState } from "react";
 import { useParams } from "wouter";
-import { useGetReview, getGetReviewQueryKey } from "@workspace/api-client-react";
+import { useGetReview, getGetReviewQueryKey, exportReviewJson, exportReviewCsv } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/lib/i18n";
 
 export default function ReviewDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useLanguage();
+  const [exportingJson, setExportingJson] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   const { data: review, isLoading } = useGetReview(id, {
     query: { enabled: !!id, queryKey: getGetReviewQueryKey(id) }
   });
+
+  const handleExportJson = async () => {
+    setExportingJson(true);
+    try {
+      const data = await exportReviewJson(id);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `review_${id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silent
+    } finally {
+      setExportingJson(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExportingCsv(true);
+    try {
+      const csv = await exportReviewCsv(id);
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `review_${id}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silent
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   if (isLoading) return <div className="flex p-8 justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   if (!review) return <div>{t.review_detail_not_found}</div>;
@@ -26,6 +66,14 @@ export default function ReviewDetail() {
           <p className="text-muted-foreground mt-1">{t.review_detail_for_doc} {review.document_title || review.document_id}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportJson} disabled={exportingJson}>
+            {exportingJson ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Download className="h-3 w-3 mr-1" />}
+            {t.review_export_json}
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={exportingCsv}>
+            {exportingCsv ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Download className="h-3 w-3 mr-1" />}
+            {t.review_export_csv}
+          </Button>
           {review.needs_review && (
             <Badge variant="outline" className="bg-yellow-50 text-yellow-800 border-yellow-600/20 text-sm">
               {t.needs_review_badge}

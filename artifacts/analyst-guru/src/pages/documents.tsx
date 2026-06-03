@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { useListDocuments, getListDocumentsQueryKey, useCreateDocument } from "@workspace/api-client-react";
+import { useListDocuments, getListDocumentsQueryKey, useCreateDocument, useReviewDocument } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
@@ -25,12 +26,28 @@ export default function Documents() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const createDocMutation = useCreateDocument();
+  const reviewMutation = useReviewDocument();
+  const [runningReviews, setRunningReviews] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [docType, setDocType] = useState("tz");
   const [projectName, setProjectName] = useState("");
+
+  const handleRunReview = async (docId: string) => {
+    setRunningReviews(prev => new Set(prev).add(docId));
+    try {
+      const res = await reviewMutation.mutateAsync({ id: docId });
+      toast({ title: t.doc_detail_review_done });
+      setLocation(`/reviews/${res.id}`);
+    } catch {
+      toast({ title: t.doc_detail_review_error, variant: "destructive" });
+    } finally {
+      setRunningReviews(prev => { const next = new Set(prev); next.delete(docId); return next; });
+    }
+  };
 
   const handleCreate = async () => {
     if (!title || !text) return;
@@ -157,7 +174,19 @@ export default function Documents() {
                     </TableCell>
                     <TableCell>{doc.project_name || "—"}</TableCell>
                     <TableCell>{new Date(doc.created_at).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRunReview(doc.id)}
+                        disabled={runningReviews.has(doc.id)}
+                        data-testid={`button-review-doc-${doc.id}`}
+                      >
+                        {runningReviews.has(doc.id) ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : null}
+                        {runningReviews.has(doc.id) ? t.docs_review_running : t.docs_run_review}
+                      </Button>
                       <Button variant="outline" size="sm" asChild data-testid={`button-view-doc-${doc.id}`}>
                         <Link href={`/documents/${doc.id}`}>{t.docs_view}</Link>
                       </Button>

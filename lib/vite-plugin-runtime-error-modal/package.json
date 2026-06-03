@@ -1,0 +1,10 @@
+{
+  "name": "vite-plugin-runtime-error-modal",
+  "version": "0.0.6",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "peerDependencies": {
+    "vite": "*"
+  }
+}

@@ -8,6 +8,7 @@ import {
   Cuboid,
   Network,
   ShieldCheck,
+  Settings as SettingsIcon,
   Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/architecture-studio", label: t.nav_architecture, icon: Cuboid },
     { href: "/memory", label: t.nav_memory, icon: Network },
     { href: "/audit", label: t.nav_audit, icon: ShieldCheck },
+    { href: "/settings", label: t.nav_settings, icon: SettingsIcon },
   ];
 
   const otherLang: Lang = lang === "ru" ? "en" : "ru";

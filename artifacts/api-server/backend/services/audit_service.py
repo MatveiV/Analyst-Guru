@@ -38,7 +38,8 @@ def with_audit(db: Session, action: str, input_data: Any, func: Callable) -> Any
         result = func()
         duration_ms = int((time.time() - start) * 1000)
         status = "needs_review" if (isinstance(result, dict) and result.get("needs_review")) else "ok"
-        save_audit(db, action, input_data, result, status, duration_ms)
+        error = result.get("error") if isinstance(result, dict) else None
+        save_audit(db, action, input_data, result, status, duration_ms, error=error)
         return result
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
