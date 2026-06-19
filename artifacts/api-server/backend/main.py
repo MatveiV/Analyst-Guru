@@ -92,8 +92,8 @@ def _seed_demo_data():
                 "text": """Глоссарий терминов для команды:
 
 BRD (Business Requirements Document) — документ бизнес-требований, описывающий цели и задачи бизнеса.
-SRS (Software Requirements Specification) — спецификация требований к программному обеспечению по стандарту IEEE 830.
-URS (User Requirements Specification) — спецификация требований пользователей, описывает что система должна делать с точки зрения пользователя.
+SRS (Software Requirements Specification) — спецификация требований к программному обеспечению по стандарту ISO/IEC/IEEE 29148.
+URS (User Requirements Specification) — спецификация требований пользователей по стандарту GAMP 5, описывает что система должна делать с точки зрения пользователя.
 ADR (Architecture Decision Record) — запись об архитектурном решении с контекстом, проблемой, решением и последствиями.
 RAG (Retrieval-Augmented Generation) — метод генерации ответов LLM с использованием найденного контекста из базы знаний.
 CQRS (Command Query Responsibility Segregation) — паттерн разделения команд и запросов.
