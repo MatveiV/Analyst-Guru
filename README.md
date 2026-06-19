@@ -571,7 +571,9 @@ curl -X POST http://localhost:8080/api/ai/answer_with_sources \
 | `OPENAI_API_KEY` | Нет | — | Ключ OpenAI GPT |
 | `PROXYAPI_API_KEY` | Нет | — | Ключ ProxyAPI |
 | `PROXYAPI_BASE_URL` | Нет | `https://api.proxyapi.ru/openai/v1` | Базовый URL ProxyAPI |
-| `LLM_PROVIDER` | Нет | `anthropic` | Провайдер по умолчанию (`anthropic`, `openai`, `proxyapi`) |
+| `OPENROUTER_API_KEY` | Нет | — | Ключ OpenRouter |
+| `OPENROUTER_BASE_URL` | Нет | `https://openrouter.ai/api/v1` | Базовый URL OpenRouter |
+| `LLM_PROVIDER` | Нет | `openrouter` | Провайдер по умолчанию (`openrouter`, `anthropic`, `openai`, `proxyapi`) |
 | `LLM_TEMPERATURE` | Нет | `0.2` | Температура LLM |
 | `LLM_MAX_TOKENS` | Нет | `4096` | Максимум токенов |
 | `RAG_TOP_K` | Нет | `5` | Количество фрагментов в RAG-поиске |

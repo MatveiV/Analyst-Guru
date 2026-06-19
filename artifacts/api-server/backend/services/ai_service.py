@@ -86,13 +86,15 @@ LLM_TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", "0.2"))
 LLM_MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "4096"))
 
 PROXYAPI_BASE_URL = os.environ.get("PROXYAPI_BASE_URL", "https://api.proxyapi.ru/openai/v1")
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 
-def _load_ai_settings() -> tuple[str, str, str, str]:
-    provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
+def _load_ai_settings() -> tuple[str, str, str, str, str]:
+    provider = os.environ.get("LLM_PROVIDER", "openrouter").lower()
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     proxyapi_key = os.environ.get("PROXYAPI_API_KEY", "")
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
     try:
         db: Session = SessionLocal()
         setting = db.query(AiSetting).first()
@@ -103,11 +105,13 @@ def _load_ai_settings() -> tuple[str, str, str, str]:
                 openai_key = setting.api_key
             elif setting.provider == "proxyapi":
                 proxyapi_key = setting.api_key
+            elif setting.provider == "openrouter":
+                openrouter_key = setting.api_key
             provider = setting.provider
         db.close()
     except Exception:
         logger.warning("Could not load AI settings from DB, using env defaults")
-    return provider, anthropic_key, openai_key, proxyapi_key
+    return provider, anthropic_key, openai_key, proxyapi_key, openrouter_key
 
 REVIEW_SCHEMA = """{
   "summary": "string (2-6 sentences about the document and what needs to be built)",
@@ -216,9 +220,30 @@ def _call_proxyapi(system_prompt: str, user_message: str, api_key: str) -> str:
         raise
 
 
-def call_llm(system_prompt: str, user_message: str) -> str:
-    provider, anthropic_key, openai_key, proxyapi_key = _load_ai_settings()
+def _call_openrouter(system_prompt: str, user_message: str, api_key: str) -> str:
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+        response = client.chat.completions.create(
+            model="openrouter/free",
+            max_tokens=LLM_MAX_TOKENS,
+            temperature=LLM_TEMPERATURE,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"OpenRouter error: {e}")
+        raise
 
+
+def call_llm(system_prompt: str, user_message: str) -> str:
+    provider, anthropic_key, openai_key, proxyapi_key, openrouter_key = _load_ai_settings()
+
+    if provider == "openrouter" and openrouter_key:
+        return _call_openrouter(system_prompt, user_message, openrouter_key)
     if provider == "proxyapi" and proxyapi_key:
         return _call_proxyapi(system_prompt, user_message, proxyapi_key)
     if provider == "openai" and openai_key:
@@ -226,6 +251,8 @@ def call_llm(system_prompt: str, user_message: str) -> str:
     if provider == "anthropic" and anthropic_key:
         return _call_anthropic(system_prompt, user_message, anthropic_key)
 
+    if openrouter_key:
+        return _call_openrouter(system_prompt, user_message, openrouter_key)
     if anthropic_key:
         return _call_anthropic(system_prompt, user_message, anthropic_key)
     if openai_key:

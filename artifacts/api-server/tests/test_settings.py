@@ -7,7 +7,7 @@ class TestSettings:
         resp = client.get("/api/settings/ai")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["provider"] == "anthropic"
+        assert data["provider"] == "openrouter"
         assert data["has_api_key"] is False
 
     def test_update_ai_setting(self, client):

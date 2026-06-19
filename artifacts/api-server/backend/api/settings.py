@@ -25,7 +25,7 @@ class AiSettingUpdate(BaseModel):
 def get_ai_setting(db: Session = Depends(get_db)):
     setting = db.query(AiSetting).first()
     if not setting:
-        return AiSettingResponse(id="", provider="anthropic", has_api_key=False)
+        return AiSettingResponse(id="", provider="openrouter", has_api_key=False)
     return AiSettingResponse(
         id=setting.id,
         provider=setting.provider,
@@ -35,7 +35,7 @@ def get_ai_setting(db: Session = Depends(get_db)):
 
 @router.put("/ai", response_model=AiSettingResponse)
 def update_ai_setting(body: AiSettingUpdate, db: Session = Depends(get_db)):
-    valid_providers = ["anthropic", "openai", "proxyapi"]
+    valid_providers = ["anthropic", "openai", "proxyapi", "openrouter"]
     if body.provider not in valid_providers:
         raise HTTPException(status_code=400, detail=f"Invalid provider. Must be one of: {', '.join(valid_providers)}")
 

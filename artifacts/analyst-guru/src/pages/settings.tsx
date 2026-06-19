@@ -16,6 +16,7 @@ import {
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const PROVIDERS = [
+  { value: "openrouter", label: "OpenRouter" },
   { value: "anthropic", label: "Anthropic (Claude)" },
   { value: "openai", label: "OpenAI (GPT)" },
   { value: "proxyapi", label: "ProxyAPI" },
@@ -23,7 +24,7 @@ const PROVIDERS = [
 
 export default function Settings() {
   const { t } = useLanguage();
-  const [provider, setProvider] = useState("anthropic");
+  const [provider, setProvider] = useState("openrouter");
   const [apiKey, setApiKey] = useState("");
   const [hasApiKey, setHasApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
