@@ -2,6 +2,7 @@ import os
 import json
 import time
 import logging
+from dataclasses import dataclass
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 from pydantic import ValidationError
@@ -12,6 +13,35 @@ from backend.database import SessionLocal
 from backend.models import AiSetting
 
 logger = logging.getLogger(__name__)
+
+PROVIDER_DEFAULTS = {
+    "openrouter": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": "openrouter/free",
+    },
+    "anthropic": {
+        "base_url": None,
+        "model": "claude-3-5-sonnet-20241022",
+    },
+    "openai": {
+        "base_url": None,
+        "model": "gpt-4o",
+    },
+    "proxyapi": {
+        "base_url": "https://api.proxyapi.ru/openai/v1",
+        "model": "gpt-4o-mini",
+    },
+}
+
+
+@dataclass
+class AISettings:
+    provider: str
+    api_key: str
+    base_url: str | None
+    model: str
+    max_tokens: int
+    temperature: float
 
 
 class ReviewOutput(BaseModel):
@@ -85,33 +115,68 @@ class DiagramOutput(BaseModel):
 LLM_TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", "0.2"))
 LLM_MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "4096"))
 
-PROXYAPI_BASE_URL = os.environ.get("PROXYAPI_BASE_URL", "https://api.proxyapi.ru/openai/v1")
-OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
-
-def _load_ai_settings() -> tuple[str, str, str, str, str]:
+def _load_ai_settings() -> AISettings:
     provider = os.environ.get("LLM_PROVIDER", "openrouter").lower()
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     proxyapi_key = os.environ.get("PROXYAPI_API_KEY", "")
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    base_url = None
+    model = None
+    max_tokens = None
+    temperature = None
+
     try:
         db: Session = SessionLocal()
         setting = db.query(AiSetting).first()
         if setting and setting.api_key:
-            if setting.provider == "anthropic":
+            if setting.provider == "openrouter":
+                openrouter_key = setting.api_key
+            elif setting.provider == "anthropic":
                 anthropic_key = setting.api_key
             elif setting.provider == "openai":
                 openai_key = setting.api_key
             elif setting.provider == "proxyapi":
                 proxyapi_key = setting.api_key
-            elif setting.provider == "openrouter":
-                openrouter_key = setting.api_key
             provider = setting.provider
+            base_url = setting.base_url
+            model = setting.model
+            max_tokens = setting.max_tokens
+            temperature = setting.temperature
         db.close()
     except Exception:
         logger.warning("Could not load AI settings from DB, using env defaults")
-    return provider, anthropic_key, openai_key, proxyapi_key, openrouter_key
+
+    key_map = {
+        "openrouter": openrouter_key,
+        "anthropic": anthropic_key,
+        "openai": openai_key,
+        "proxyapi": proxyapi_key,
+    }
+    api_key = key_map.get(provider, "")
+
+    if not api_key:
+        for p in ["openrouter", "anthropic", "openai", "proxyapi"]:
+            if key_map.get(p):
+                provider = p
+                api_key = key_map[p]
+                break
+
+    defaults = PROVIDER_DEFAULTS.get(provider, {})
+    resolved_base_url = base_url or defaults.get("base_url")
+    resolved_model = model or defaults.get("model", "gpt-4o-mini")
+    resolved_max_tokens = max_tokens or LLM_MAX_TOKENS
+    resolved_temperature = temperature if temperature is not None else LLM_TEMPERATURE
+
+    return AISettings(
+        provider=provider,
+        api_key=api_key,
+        base_url=resolved_base_url,
+        model=resolved_model,
+        max_tokens=resolved_max_tokens,
+        temperature=resolved_temperature,
+    )
 
 REVIEW_SCHEMA = """{
   "summary": "string (2-6 sentences about the document and what needs to be built)",
@@ -165,14 +230,14 @@ DIAGRAM_SCHEMA = """{
 }"""
 
 
-def _call_anthropic(system_prompt: str, user_message: str, api_key: str) -> str:
+def _call_anthropic(settings: AISettings, system_prompt: str, user_message: str) -> str:
     try:
         import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=settings.api_key)
         message = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=LLM_MAX_TOKENS,
-            temperature=LLM_TEMPERATURE,
+            model=settings.model,
+            max_tokens=settings.max_tokens,
+            temperature=settings.temperature,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
         )
@@ -182,14 +247,17 @@ def _call_anthropic(system_prompt: str, user_message: str, api_key: str) -> str:
         raise
 
 
-def _call_openai(system_prompt: str, user_message: str, api_key: str) -> str:
+def _call_openai(settings: AISettings, system_prompt: str, user_message: str) -> str:
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        kwargs = {}
+        if settings.base_url:
+            kwargs["base_url"] = settings.base_url
+        client = OpenAI(api_key=settings.api_key, **kwargs)
         response = client.chat.completions.create(
-            model="gpt-4o",
-            max_tokens=LLM_MAX_TOKENS,
-            temperature=LLM_TEMPERATURE,
+            model=settings.model,
+            max_tokens=settings.max_tokens,
+            temperature=settings.temperature,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -201,14 +269,15 @@ def _call_openai(system_prompt: str, user_message: str, api_key: str) -> str:
         raise
 
 
-def _call_proxyapi(system_prompt: str, user_message: str, api_key: str) -> str:
+def _call_proxyapi(settings: AISettings, system_prompt: str, user_message: str) -> str:
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url=PROXYAPI_BASE_URL)
+        base = settings.base_url or "https://api.proxyapi.ru/openai/v1"
+        client = OpenAI(api_key=settings.api_key, base_url=base)
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            max_tokens=LLM_MAX_TOKENS,
-            temperature=LLM_TEMPERATURE,
+            model=settings.model,
+            max_tokens=settings.max_tokens,
+            temperature=settings.temperature,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -220,14 +289,15 @@ def _call_proxyapi(system_prompt: str, user_message: str, api_key: str) -> str:
         raise
 
 
-def _call_openrouter(system_prompt: str, user_message: str, api_key: str) -> str:
+def _call_openrouter(settings: AISettings, system_prompt: str, user_message: str) -> str:
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+        base = settings.base_url or "https://openrouter.ai/api/v1"
+        client = OpenAI(api_key=settings.api_key, base_url=base)
         response = client.chat.completions.create(
-            model="openrouter/free",
-            max_tokens=LLM_MAX_TOKENS,
-            temperature=LLM_TEMPERATURE,
+            model=settings.model,
+            max_tokens=settings.max_tokens,
+            temperature=settings.temperature,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -240,27 +310,23 @@ def _call_openrouter(system_prompt: str, user_message: str, api_key: str) -> str
 
 
 def call_llm(system_prompt: str, user_message: str) -> str:
-    provider, anthropic_key, openai_key, proxyapi_key, openrouter_key = _load_ai_settings()
+    settings = _load_ai_settings()
 
-    if provider == "openrouter" and openrouter_key:
-        return _call_openrouter(system_prompt, user_message, openrouter_key)
-    if provider == "proxyapi" and proxyapi_key:
-        return _call_proxyapi(system_prompt, user_message, proxyapi_key)
-    if provider == "openai" and openai_key:
-        return _call_openai(system_prompt, user_message, openai_key)
-    if provider == "anthropic" and anthropic_key:
-        return _call_anthropic(system_prompt, user_message, anthropic_key)
+    if not settings.api_key:
+        raise RuntimeError("No LLM API key configured. Set API key in Settings or via environment variables.")
 
-    if openrouter_key:
-        return _call_openrouter(system_prompt, user_message, openrouter_key)
-    if anthropic_key:
-        return _call_anthropic(system_prompt, user_message, anthropic_key)
-    if openai_key:
-        return _call_openai(system_prompt, user_message, openai_key)
-    if proxyapi_key:
-        return _call_proxyapi(system_prompt, user_message, proxyapi_key)
+    router = {
+        "openrouter": _call_openrouter,
+        "anthropic": _call_anthropic,
+        "openai": _call_openai,
+        "proxyapi": _call_proxyapi,
+    }
 
-    raise RuntimeError("No LLM API key configured. Set API key in Settings or via environment variables.")
+    func = router.get(settings.provider)
+    if func:
+        return func(settings, system_prompt, user_message)
+
+    raise RuntimeError(f"Unknown provider: {settings.provider}")
 
 
 def safe_parse_json(raw: str) -> Optional[dict]:

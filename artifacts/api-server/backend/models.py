@@ -153,8 +153,12 @@ class AiSetting(Base):
     id = Column(String, primary_key=True, default=new_uuid)
     created_at = Column(DateTime, default=now, nullable=False)
     updated_at = Column(DateTime, default=now, onupdate=now, nullable=False)
-    provider = Column(String(20), default="anthropic", nullable=False)
+    provider = Column(String(20), default="openrouter", nullable=False)
     api_key = Column(Text, nullable=True)
+    base_url = Column(Text, nullable=True)
+    model = Column(String(100), nullable=True)
+    max_tokens = Column(Integer, nullable=True)
+    temperature = Column(Float, nullable=True)
 
 
 class RiskCatalogItem(Base):
