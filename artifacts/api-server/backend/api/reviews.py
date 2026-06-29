@@ -16,6 +16,11 @@ router = APIRouter(prefix="/api", tags=["reviews"])
 
 class DirectReviewInput(BaseModel):
     text: str = Field(min_length=1, max_length=30000)
+    reasoning_mode: str = "none"
+
+
+class ReviewDocumentQuery(BaseModel):
+    reasoning_mode: str = "none"
 
 
 def review_to_dict(review: ReviewModel, doc_title: Optional[str] = None) -> dict:
@@ -36,7 +41,11 @@ def review_to_dict(review: ReviewModel, doc_title: Optional[str] = None) -> dict
 
 
 @router.post("/documents/{id}/review", status_code=201)
-def review_document(id: str, db: Session = Depends(get_db)):
+def review_document(
+    id: str,
+    reasoning_mode: str = Query("none"),
+    db: Session = Depends(get_db),
+):
     doc = db.query(DocumentModel).filter(DocumentModel.id == id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -57,6 +66,7 @@ def review_document(id: str, db: Session = Depends(get_db)):
             memory_risks=memory_risks,
             memory_lessons=memory_lessons,
             memory_decisions=memory_decisions,
+            reasoning_mode=reasoning_mode,
         )
 
     result = audit_service.with_audit(
@@ -131,7 +141,7 @@ def get_review(id: str, db: Session = Depends(get_db)):
 @router.post("/ai/review")
 def direct_ai_review(body: DirectReviewInput, db: Session = Depends(get_db)):
     def do_review():
-        return ai_service.review_document(body.text)
+        return ai_service.review_document(body.text, reasoning_mode=body.reasoning_mode)
 
     result = audit_service.with_audit(
         db, "direct_ai_review", {"text_length": len(body.text)}, do_review

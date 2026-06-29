@@ -230,7 +230,42 @@ DIAGRAM_SCHEMA = """{
 }"""
 
 
-def _call_anthropic(settings: AISettings, system_prompt: str, user_message: str) -> str:
+REASONING_PROMPTS = {
+    "cot": """
+ВАЖНО: Используй Chain-of-Thought (цепочку рассуждений).
+Перед ответом:
+1. Проанализируй требования документа
+2. Выяви ключевые элементы, риски и неопределённости
+3. Сформулируй выводы на основе анализа
+
+Помести свои рассуждения в тег <reasoning>...</reasoning>, затем верни JSON.""",
+    "react": """
+ВАЖНО: Используй ReAct (рассуждение + проверка).
+1. Thought: Проанализируй задачу — что от тебя требуется, какие данные есть
+2. Action: Определи, какие проверки нужно выполнить (полнота, противоречия, риски)
+3. Observation: Проанализируй результат проверок, зафиксируй выводы
+4. Answer: Сформулируй окончательный ответ на основе наблюдений
+5. Verify: Перепроверь ответ — все ли требования учтены, нет ли пропусков
+
+Помести свои рассуждения в тег <reasoning>...</reasoning>, затем верни JSON.""",
+}
+
+
+def _build_prompt(base: str, reasoning_mode: str) -> str:
+    if reasoning_mode in REASONING_PROMPTS:
+        return base + REASONING_PROMPTS[reasoning_mode]
+    return base
+
+
+def _extract_reasoning(raw: str) -> tuple[str, str]:
+    """Extract <reasoning>...</reasoning> block from LLM output.
+    Returns (cleaned_text, reasoning_text)."""
+    import re
+    m = re.search(r'<reasoning>(.*?)</reasoning>', raw, re.DOTALL)
+    if m:
+        cleaned = raw[:m.start()] + raw[m.end():]
+        return cleaned.strip(), m.group(1).strip()
+    return raw.strip(), ""
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=settings.api_key)
@@ -383,8 +418,9 @@ def review_document(
     memory_risks: str = "",
     memory_lessons: str = "",
     memory_decisions: str = "",
+    reasoning_mode: str = "none",
 ) -> dict:
-    system_prompt = """Ты — Senior System Analyst с 15 годами опыта. Твоя задача — провести экспертную рецензию технического задания (ТЗ) на соответствие ГОСТ 34 и ГОСТ 19.
+    base_prompt = """Ты — Senior System Analyst с 15 годами опыта. Твоя задача — провести экспертную рецензию технического задания (ТЗ) на соответствие ГОСТ 34 и ГОСТ 19.
 
 НОРМАТИВНЫЕ ТРЕБОВАНИЯ:
 - ГОСТ 34.602-89 — состав и содержание ТЗ на создание автоматизированной системы: общие сведения, назначение и цели создания, характеристика объекта, требования к системе, состав и содержание работ, порядок контроля и приёмки.
@@ -399,6 +435,8 @@ def review_document(
 6. При оценке полноты ТЗ учитывай наличие разделов по ГОСТ 34 и ГОСТ 19. Отмечай отсутствующие обязательные разделы.
 7. Всегда возвращай строгий JSON без Markdown-обёртки."""
 
+    system_prompt = _build_prompt(base_prompt, reasoning_mode)
+
     user_message = f"""ДОКУМЕНТ ДЛЯ РЕЦЕНЗИИ:
 {document_text}
 
@@ -411,6 +449,9 @@ def review_document(
 {REVIEW_SCHEMA}"""
 
     raw = call_llm(system_prompt, user_message)
+    reasoning = ""
+    if reasoning_mode != "none":
+        raw, reasoning = _extract_reasoning(raw)
     data = safe_parse_json(raw)
     if data is None:
         return safe_fallback_review("INVALID_JSON")
@@ -420,6 +461,9 @@ def review_document(
         data = validated.model_dump()
     except ValidationError:
         return safe_fallback_review("INVALID_JSON")
+
+    if reasoning:
+        data["reasoning"] = reasoning
 
     # Apply rules: short/vague document
     text_stripped = document_text.strip()
@@ -459,10 +503,12 @@ def review_document(
     return data
 
 
-def answer_with_sources(question: str, context: str) -> dict:
-    system_prompt = """Ты — корпоративный ассистент. Отвечай ТОЛЬКО на основе предоставленного контекста.
+def answer_with_sources(question: str, context: str, reasoning_mode: str = "none") -> dict:
+    base_prompt = """Ты — корпоративный ассистент. Отвечай ТОЛЬКО на основе предоставленного контекста.
 Если в контексте нет ответа — честно скажи "Данных недостаточно" и поставь needs_review=true.
 Никогда не придумывай информацию."""
+
+    system_prompt = _build_prompt(base_prompt, reasoning_mode)
 
     user_message = f"""ВОПРОС: {question}
 
@@ -473,6 +519,9 @@ def answer_with_sources(question: str, context: str) -> dict:
 {ANSWER_SCHEMA}"""
 
     raw = call_llm(system_prompt, user_message)
+    reasoning = ""
+    if reasoning_mode != "none":
+        raw, reasoning = _extract_reasoning(raw)
     data = safe_parse_json(raw)
     if data is None:
         return safe_fallback_answer("INVALID_JSON")
@@ -482,6 +531,9 @@ def answer_with_sources(question: str, context: str) -> dict:
         data = validated.model_dump()
     except ValidationError:
         return safe_fallback_answer("INVALID_JSON")
+
+    if reasoning:
+        data["reasoning"] = reasoning
 
     if not data.get("sources"):
         data["needs_review"] = True

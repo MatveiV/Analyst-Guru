@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListDocuments, getListDocumentsQueryKey, useCreateDocument, useReviewDocument } from "@workspace/api-client-react";
+import { useListDocuments, getListDocumentsQueryKey, useCreateDocument } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,10 +9,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Brain } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/lib/i18n";
+
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 export default function Documents() {
   const { t } = useLanguage();
@@ -28,20 +30,23 @@ export default function Documents() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const createDocMutation = useCreateDocument();
-  const reviewMutation = useReviewDocument();
   const [runningReviews, setRunningReviews] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [docType, setDocType] = useState("tz");
   const [projectName, setProjectName] = useState("");
+  const [reasoningMode, setReasoningMode] = useState("none");
 
   const handleRunReview = async (docId: string) => {
     setRunningReviews(prev => new Set(prev).add(docId));
     try {
-      const res = await reviewMutation.mutateAsync({ id: docId });
+      const params = reasoningMode !== "none" ? `?reasoning_mode=${reasoningMode}` : "";
+      const res = await fetch(`${API_BASE}/api/documents/${docId}/review${params}`, { method: "POST" });
+      if (!res.ok) throw new Error("Review failed");
+      const data = await res.json();
       toast({ title: t.doc_detail_review_done });
-      setLocation(`/reviews/${res.id}`);
+      setLocation(`/reviews/${data.review_id}`);
     } catch {
       toast({ title: t.doc_detail_review_error, variant: "destructive" });
     } finally {
@@ -140,6 +145,24 @@ export default function Documents() {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Brain className="h-4 w-4 text-muted-foreground" />
+        <Select value={reasoningMode} onValueChange={setReasoningMode}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{t.reasoning_none}</SelectItem>
+            <SelectItem value="cot">{t.reasoning_cot}</SelectItem>
+            <SelectItem value="react">{t.reasoning_react}</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">
+          {reasoningMode === "none" ? t.reasoning_none_hint :
+           reasoningMode === "cot" ? t.reasoning_cot_hint : t.reasoning_react_hint}
+        </span>
       </div>
 
       <Card>

@@ -20,11 +20,13 @@ class KbDocumentInput(BaseModel):
 
 class KbQuestionInput(BaseModel):
     question: str = Field(min_length=5, max_length=2000)
+    reasoning_mode: str = "none"
 
 
 class DirectAnswerInput(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     context: str = Field(min_length=0, max_length=50000)
+    reasoning_mode: str = "none"
 
 
 def doc_to_dict(doc: DocumentModel) -> dict:
@@ -75,10 +77,10 @@ def ask_knowledge_base(body: KbQuestionInput, db: Session = Depends(get_db)):
     context = rag_engine.format_context(search_results)
 
     def do_answer():
-        return ai_service.answer_with_sources(body.question, context)
+        return ai_service.answer_with_sources(body.question, context, reasoning_mode=body.reasoning_mode)
 
     result = audit_service.with_audit(
-        db, "kb_ask", {"question": body.question}, do_answer
+        db, "kb_ask", {"question": body.question, "reasoning_mode": body.reasoning_mode}, do_answer
     )
 
     sources = result.get("sources", [])
@@ -156,8 +158,8 @@ router_direct = APIRouter(prefix="/api/ai", tags=["kb"])
 @router_direct.post("/answer_with_sources")
 def direct_answer(body: DirectAnswerInput, db: Session = Depends(get_db)):
     def do_answer():
-        return ai_service.answer_with_sources(body.question, body.context)
+        return ai_service.answer_with_sources(body.question, body.context, reasoning_mode=body.reasoning_mode)
 
     return audit_service.with_audit(
-        db, "direct_ai_answer", {"question": body.question}, do_answer
+        db, "direct_ai_answer", {"question": body.question, "reasoning_mode": body.reasoning_mode}, do_answer
     )

@@ -4,14 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import {
   useListKbDocuments, getListKbDocumentsQueryKey,
   useListKbHistory, getListKbHistoryQueryKey,
-  useAskKnowledgeBase, useAddKbDocument
+  useAddKbDocument
 } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, ExternalLink, FileText, Plus } from "lucide-react";
+import { Loader2, Search, ExternalLink, FileText, Plus, Brain } from "lucide-react";
 import { Link } from "wouter";
 import { useLanguage } from "@/lib/i18n";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,13 +21,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+
 export default function KnowledgeBase() {
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("ask");
   const [question, setQuestion] = useState("");
-  const askMutation = useAskKnowledgeBase();
   const addKbMutation = useAddKbDocument();
   const [answer, setAnswer] = useState<any>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -36,6 +37,8 @@ export default function KnowledgeBase() {
   const [newProject, setNewProject] = useState("");
   const [historyFilter, setHistoryFilter] = useState<string>("all");
   const [detailItem, setDetailItem] = useState<any>(null);
+  const [reasoningMode, setReasoningMode] = useState("none");
+  const [asking, setAsking] = useState(false);
 
   const { data: kbDocs, isLoading: kbLoading } = useListKbDocuments({}, {
     query: { queryKey: getListKbDocumentsQueryKey() }
@@ -48,13 +51,22 @@ export default function KnowledgeBase() {
 
   const handleAsk = useCallback(async () => {
     if (!question.trim()) return;
+    setAsking(true);
     try {
-      const res = await askMutation.mutateAsync({ data: { question } });
-      setAnswer(res);
+      const res = await fetch(`${API_BASE}/api/kb/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, reasoning_mode: reasoningMode }),
+      });
+      if (!res.ok) throw new Error("Ask failed");
+      const data = await res.json();
+      setAnswer(data);
     } catch (e) {
       console.error(e);
+    } finally {
+      setAsking(false);
     }
-  }, [question, askMutation]);
+  }, [question, reasoningMode]);
 
   const handleAddDocument = async () => {
     if (!newTitle.trim() || !newText.trim()) return;
@@ -102,16 +114,29 @@ export default function KnowledgeBase() {
                   onChange={e => setQuestion(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAsk()}
                 />
-                <Button
-                  onClick={handleAsk}
-                  disabled={askMutation.isPending || !question.trim()}
-                  data-testid="button-ask-kb"
-                >
-                  {askMutation.isPending
-                    ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    : <Search className="h-4 w-4 mr-2" />}
-                  {t.kb_ask_btn}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Select value={reasoningMode} onValueChange={setReasoningMode}>
+                    <SelectTrigger className="w-[140px]">
+                      <Brain className="h-3.5 w-3.5 mr-1" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t.reasoning_none}</SelectItem>
+                      <SelectItem value="cot">{t.reasoning_cot}</SelectItem>
+                      <SelectItem value="react">{t.reasoning_react}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleAsk}
+                    disabled={asking || !question.trim()}
+                    data-testid="button-ask-kb"
+                  >
+                    {asking
+                      ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      : <Search className="h-4 w-4 mr-2" />}
+                    {t.kb_ask_btn}
+                  </Button>
+                </div>
               </div>
 
               {answer && (
@@ -126,6 +151,16 @@ export default function KnowledgeBase() {
                       )}
                     </div>
                     <div className="text-sm leading-relaxed whitespace-pre-wrap">{answer.answer}</div>
+                    {answer.reasoning && (
+                      <details className="mt-4 border rounded p-3 bg-card/50">
+                        <summary className="text-xs font-semibold text-muted-foreground cursor-pointer select-none">
+                          {t.reasoning_block}
+                        </summary>
+                        <div className="mt-2 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap font-mono">
+                          {answer.reasoning}
+                        </div>
+                      </details>
+                    )}
                   </div>
 
                   {answer.sources && answer.sources.length > 0 && (

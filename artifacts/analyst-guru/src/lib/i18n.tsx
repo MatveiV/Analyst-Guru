@@ -185,6 +185,15 @@ const translations = {
     settings_saved: "Настройки сохранены",
     settings_error: "Ошибка сохранения настроек",
 
+    // reasoning
+    reasoning_cot: "Режим рассуждений (CoT)",
+    reasoning_cot_hint: "Показывать цепочку рассуждений ИИ",
+    reasoning_react: "Режим ReAct",
+    reasoning_react_hint: "Рассуждение + самопроверка ответа",
+    reasoning_none: "Без рассуждений",
+    reasoning_none_hint: "Прямой ответ без пояснений",
+    reasoning_block: "Цепочка рассуждений",
+
     // audit
     audit_title: "Центр аудита",
     audit_subtitle: "Телеметрия системы и журналы выполнения.",
@@ -383,6 +392,15 @@ const translations = {
     settings_save_btn: "Save Settings",
     settings_saved: "Settings saved",
     settings_error: "Failed to save settings",
+
+    // reasoning
+    reasoning_cot: "Chain-of-Thought",
+    reasoning_cot_hint: "Show AI reasoning chain",
+    reasoning_react: "ReAct Mode",
+    reasoning_react_hint: "Reasoning + self-verification",
+    reasoning_none: "No reasoning",
+    reasoning_none_hint: "Direct answer without explanation",
+    reasoning_block: "Reasoning chain",
 
     // audit
     audit_title: "Audit Center",

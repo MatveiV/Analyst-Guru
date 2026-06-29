@@ -536,6 +536,12 @@ curl -X POST http://localhost:8080/api/documents \
 # Запустить рецензию (замените DOCUMENT_ID)
 curl -X POST http://localhost:8080/api/documents/DOCUMENT_ID/review
 
+# Запустить рецензию с Chain-of-Thought
+curl -X POST "http://localhost:8080/api/documents/DOCUMENT_ID/review?reasoning_mode=cot"
+
+# Запустить рецензию с ReAct (рассуждение + самопроверка)
+curl -X POST "http://localhost:8080/api/documents/DOCUMENT_ID/review?reasoning_mode=react"
+
 # Посмотреть рецензию
 curl -X GET http://localhost:8080/api/reviews/REVIEW_ID
 
@@ -544,21 +550,52 @@ curl -X POST http://localhost:8080/api/ai/review \
   -H "Content-Type: application/json" \
   -d '{"text":"Нужна форма заявки с таблицей результатов. Поля: имя, телефон, email."}'
 
+# Прямой AI-анализ с CoT
+curl -X POST http://localhost:8080/api/ai/review \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Нужна форма заявки...","reasoning_mode":"cot"}'
+
 # Добавить документ в базу знаний
 curl -X POST http://localhost:8080/api/kb/documents \
   -H "Content-Type: application/json" \
   -d '{"title":"Правила работы","text":"Стандарты и регламенты команды.\n1. Стендап в 10:00.\n2. Код-ревью обязательно."}'
 
-# Задать вопрос базе знаний
+# Задать вопрос базе знаний (без рассуждений)
 curl -X POST http://localhost:8080/api/kb/ask \
   -H "Content-Type: application/json" \
   -d '{"question":"Какой механизм аутентификации используется?"}'
+
+# Задать вопрос с CoT
+curl -X POST http://localhost:8080/api/kb/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Какой механизм аутентификации используется?","reasoning_mode":"cot"}'
 
 # Прямой AI-ответ с источниками (для тестирования)
 curl -X POST http://localhost:8080/api/ai/answer_with_sources \
   -H "Content-Type: application/json" \
   -d '{"question":"Что такое ADR?","context":"ADR (Architecture Decision Record) — это запись об архитектурном решении."}'
 ```
+
+---
+
+### Chain-of-Thought и ReAct (опционально)
+
+По умолчанию ИИ отвечает напрямую, без пояснения хода рассуждений. Для сложных случаев можно включить режимы:
+
+| Режим | Параметр | Описание |
+|-------|----------|----------|
+| Без рассуждений | `"none"` | Прямой ответ, только JSON (по умолчанию) |
+| Chain-of-Thought | `"cot"` | ИИ пошагово анализирует задачу перед ответом, рассуждения сохраняются в поле `reasoning` |
+| ReAct | `"react"` | ИИ использует цикл «рассуждение → действие → наблюдение → проверка», результат с самопроверкой |
+
+**Где поддерживается:**
+- `POST /api/documents/{id}/review?reasoning_mode=cot` — рецензия с CoT
+- `POST /api/ai/review` — поле `"reasoning_mode": "cot"` в теле запроса
+- `POST /api/kb/ask` — поле `"reasoning_mode": "react"` в теле запроса
+- `POST /api/ai/answer_with_sources` — поле `"reasoning_mode": "cot"` в теле запроса
+
+В веб-панели режим выбирается через выпадающий список рядом с кнопкой «Рецензировать» или «Спросить».
+При использовании CoT или ReAct ответ содержит дополнительный блок `reasoning` с цепочкой рассуждений.
 
 ---
 

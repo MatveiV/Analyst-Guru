@@ -152,6 +152,17 @@ export default function ReviewDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {result.reasoning && (
+        <Card>
+          <CardHeader><CardTitle>{t.reasoning_block}</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-xs leading-relaxed whitespace-pre-wrap font-mono text-muted-foreground bg-muted/30 p-4 rounded">
+              {result.reasoning}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
